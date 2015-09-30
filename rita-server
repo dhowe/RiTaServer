@@ -1,0 +1,105 @@
+#!/bin/bash
+#
+# Startup script for RiTa-Server
+# place in /etc/rc.d/init.d, then
+# add with: 'chkconfig --add rita-server' 
+# start/stop with: 'service rita-server start/stop'
+#
+# chkconfig: 2345 84 16
+# description: RiTa Server Service
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+
+RITASERVER_HOME=/var/www/html/rita/server
+RITASERVER_SCRIPT=run-rita-server.sh
+LOG="/var/log/rita-server.log"
+LOCK="/var/lock/subsys/ritaserver"
+#LOG="rita-server.log"
+
+export RITASERVER_HOME
+
+#echo "nohup $RITASERVER_HOME/$RITASERVER_SCRIPT >> $LOG 2>&1 &"
+#exit
+
+RETVAL=0
+
+pid_of_ritaserver() {
+    pgrep -f "java.*rita\/server"
+}
+
+start() {
+    [ -e "$LOG" ] && cnt=`wc -l "$LOG" | awk '{ print $1 }'` || cnt=1
+
+    echo -n $"Starting rita-server: "
+
+		cd $RITASERVER_HOME
+    nohup ./$RITASERVER_SCRIPT >> "$LOG" 2>&1 &
+
+    while { pid_of_ritaserver > /dev/null ; } &&
+        ! { tail +$cnt "$LOG" | grep -q 'RiTa-Server .* running' ; } ; do
+        sleep 1
+    done
+
+    pid_of_ritaserver > /dev/null
+    RETVAL=$?
+    [ $RETVAL = 0 ] && success $"$STRING" || failure $"$STRING"
+    echo
+
+    [ $RETVAL = 0 ] && touch "$LOCK"
+}
+
+stop() {
+    echo -n "Stopping rita-server: "
+
+    pid=`pid_of_ritaserver`
+    [ -n "$pid" ] && kill $pid
+    RETVAL=$?
+    cnt=10
+    while [ $RETVAL = 0 -a $cnt -gt 0 ] &&
+        { pid_of_ritaserver > /dev/null ; } ; do
+            sleep 1
+            ((cnt--))
+    done
+
+    [ $RETVAL = 0 ] && rm -f "$LOCK"
+    [ $RETVAL = 0 ] && success $"$STRING" || failure $"$STRING"
+    echo
+}
+
+status() {
+    pid=`pid_of_ritaserver`
+    if [ -n "$pid" ]; then
+        echo "rita-server (pid $pid) is running..."
+        return 0
+    fi
+    if [ -f "$LOCK" ]; then
+        echo $"${base} dead but subsys locked: ${LOCK} exists"
+        return 2
+    fi
+    echo "rita-server is stopped"
+    return 3
+}
+
+# See how we were called.
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    status)
+        status
+        ;;
+    restart)
+        stop
+        start
+        ;;
+    *)
+        echo $"Usage: $0 {start|stop|restart|status}"
+        exit 1
+esac
+
+exit $RETVAL
