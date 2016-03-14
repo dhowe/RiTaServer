@@ -18,7 +18,7 @@ public class RiWordNetRemote extends RiTaRemote
   }
     
   @GET
-  @Path("getRandomWord/{query}/{pos}")
+  @Path("getRandomWord/{pos}")
   @Produces("application/javascript")
   public String getRandomWord(@QueryParam("callback") String cb, @PathParam("pos") String pos)
   {
